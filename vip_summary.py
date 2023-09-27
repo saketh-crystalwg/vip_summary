@@ -122,6 +122,7 @@ order by customer_fk desc \
 dpst_f as ( \
 select customer_fk, sum(case when date_diff_dpst <= 7 then deposit_amount_eur else 0  end ) as deposit_7_days, \
 sum(case when date_diff_dpst <= 14 then deposit_amount_eur else 0  end ) as deposit_14_days, \
+sum(case when date_diff_dpst <= 21 then deposit_amount_eur else 0  end ) as deposit_21_days, \
 sum(case when date_diff_dpst <= 32 then deposit_amount_eur else 0  end ) as deposit_32_days, \
 sum(case when date_diff_dpst <= 60 then deposit_amount_eur else 0  end ) as deposit_60_days, \
 sum(case when date_diff_dpst <= 90 then deposit_amount_eur else 0  end ) as deposit_90_days, \
@@ -134,6 +135,7 @@ group by 1), \
 wtdrl_f as ( \
 select customer_fk, sum(case when date_diff_wtdrl <= 7 then wtdrl_amount_eur else 0  end ) as Withdrawl_7_Days, \
 sum(case when date_diff_wtdrl <= 14 then wtdrl_amount_eur else 0  end ) as Withdrawl_14_Days, \
+sum(case when date_diff_wtdrl <= 21 then wtdrl_amount_eur else 0  end ) as Withdrawl_21_Days, \
 sum(case when date_diff_wtdrl <= 32 then wtdrl_amount_eur else 0  end ) as Withdrawl_32_Days, \
 sum(case when date_diff_wtdrl <= 60 then wtdrl_amount_eur else 0  end ) as Withdrawl_60_Days, \
 sum(case when date_diff_wtdrl <= 90 then wtdrl_amount_eur else 0  end ) as Withdrawl_90_Days, \
@@ -144,6 +146,7 @@ group by 1), \
 revenues_f as ( \
 select customer_fk, sum(case when date_diff_rev <= 7 then NGR else 0  end ) as NGR_7_Days, \
 sum(case when date_diff_rev <= 14 then NGR else 0  end ) as NGR_14_Days, \
+sum(case when date_diff_rev <= 21 then NGR else 0  end ) as NGR_21_Days, \
 sum(case when date_diff_rev <= 32 then NGR else 0  end ) as NGR_32_Days, \
 sum(case when date_diff_rev <= 60 then NGR else 0  end ) as NGR_60_Days, \
 sum(case when date_diff_rev <= 90 then NGR else 0  end ) as NGR_90_Days, \
@@ -151,6 +154,7 @@ sum(NGR) as NGR_lifetime, \
 sum(GGR) as GGR_lifetime, \
 (sum(case when date_diff_rev <= 7 then bets else 0  end ) / sum(case when date_diff_rev <= 7 then games else 0  end ))  as Avg_Bet_7_Days, \
 (sum(case when date_diff_rev <= 14 then bets else 0  end ) / sum(case when date_diff_rev <= 14 then games else 0  end )) as Avg_Bet_14_Days, \
+(sum(case when date_diff_rev <= 21 then bets else 0  end ) / sum(case when date_diff_rev <= 21 then games else 0  end )) as Avg_Bet_21_Days, \
 (sum(case when date_diff_rev <= 32 then bets else 0  end ) / sum(case when date_diff_rev <= 32 then games else 0  end )) as Avg_Bet_32_Days, \
 (sum(case when date_diff_rev <= 60 then bets else 0  end ) / sum(case when date_diff_rev <= 60 then games else 0  end )) as Avg_Bet_60_Days, \
 (sum(case when date_diff_rev <= 90 then bets else 0  end ) / sum(case when date_diff_rev <= 90 then games else 0  end )) as Avg_Bet_90_Days, \
@@ -166,11 +170,12 @@ a.lang_desc as Language, \
 Days_since_last_login, \
 DATEDIFF(SYSDATE(),date(f.last_bet_date)) as Days_since_last_bet, \
 Days_since_last_deposit, \
-Deposit_7_days, Deposit_14_days, Deposit_32_days, Deposit_60_days, Deposit_90_days, Total_Deposits_Count, Deposit_Lifetime, \
-Withdrawl_7_Days, Withdrawl_14_Days, Withdrawl_32_Days, Withdrawl_60_Days, Withdrawl_90_Days, Withdrawl_Lifetime, \
-Avg_Bet_7_Days, Avg_Bet_14_Days, Avg_Bet_32_Days, Avg_Bet_60_Days, Avg_Bet_90_Days, \
-NGR_7_Days, NGR_14_Days, NGR_32_Days, NGR_60_Days, NGR_90_Days, NGR_lifetime, GGR_Lifetime, \
+Deposit_7_days, Deposit_14_days,Deposit_21_days, Deposit_32_days, Deposit_60_days, Deposit_90_days, Total_Deposits_Count, Deposit_Lifetime, \
+Withdrawl_7_Days, Withdrawl_14_Days,Withdrawl_21_Days, Withdrawl_32_Days, Withdrawl_60_Days, Withdrawl_90_Days, Withdrawl_Lifetime, \
+Avg_Bet_7_Days, Avg_Bet_14_Days,Avg_Bet_21_Days, Avg_Bet_32_Days, Avg_Bet_60_Days, Avg_Bet_90_Days, \
+NGR_7_Days, NGR_14_Days,NGR_21_Days, NGR_32_Days, NGR_60_Days, NGR_90_Days, NGR_lifetime, GGR_Lifetime, \
 (NGR_7_Days/deposit_7_days) as NGR_Deposits_7_Days, (NGR_14_Days/deposit_14_days) as NGR_Deposits_14_Days, \
+(NGR_21_Days/deposit_21_days) as NGR_Deposits_21_Days,\
 (NGR_32_Days/deposit_32_days) as NGR_Deposits_32_Days, (NGR_60_Days/deposit_60_days) as NGR_Deposits_60_Days, \
 (NGR_90_Days/deposit_90_days) as NGR_Deposits_90_Days, balance_base_currency as Player_Balance, \
 (Withdrawl_Lifetime / Deposit_Lifetime ) as Deposit_Payout_Percent, Payout_Percent, \
@@ -216,28 +221,26 @@ where 1k_date = 1 \
 ) as i \
 on a.customer_fk = i.customer_fk", con=connection)
 
-# VIP_Summary[["Deposit_7_days","Deposit_14_days"]] = VIP_Summary[["Deposit_7_days","Deposit_14_days"]].apply(currency_format)
-
-VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_32_days",\
+VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_days",\
             "Deposit_60_days","Deposit_90_days","Total_Deposits_Count",\
             "Deposit_Lifetime","Withdrawl_7_Days",\
-            "Withdrawl_14_Days","Withdrawl_32_Days",\
+            "Withdrawl_14_Days","Withdrawl_21_Days","Withdrawl_32_Days",\
             "Withdrawl_60_Days","Withdrawl_90_Days","Withdrawl_Lifetime",\
-            'Avg_Bet_7_Days','Avg_Bet_14_Days', 'Avg_Bet_32_Days', 'Avg_Bet_60_Days',\
-             'Avg_Bet_90_Days', 'NGR_7_Days', 'NGR_14_Days', 'NGR_32_Days',\
+            'Avg_Bet_7_Days','Avg_Bet_14_Days','Avg_Bet_21_Days', 'Avg_Bet_32_Days', 'Avg_Bet_60_Days',\
+             'Avg_Bet_90_Days', 'NGR_7_Days', 'NGR_14_Days','NGR_21_Days', 'NGR_32_Days',\
              'NGR_60_Days', 'NGR_90_Days', 'NGR_lifetime', 'GGR_Lifetime',\
-             'NGR_Deposits_7_Days', 'NGR_Deposits_14_Days', 'NGR_Deposits_32_Days',\
+             'NGR_Deposits_7_Days', 'NGR_Deposits_14_Days','NGR_Deposits_21_Days', 'NGR_Deposits_32_Days',\
              'NGR_Deposits_60_Days', 'NGR_Deposits_90_Days', 'Player_Balance',\
              'Deposit_Payout_Percent','Payout_Percent', 'Net_deposits', 'Bonus_Used']]\
-= VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_32_days",\
+= VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_days",\
             "Deposit_60_days","Deposit_90_days","Total_Deposits_Count",\
             "Deposit_Lifetime","Withdrawl_7_Days",\
-            "Withdrawl_14_Days","Withdrawl_32_Days",\
+            "Withdrawl_14_Days","Withdrawl_21_Days","Withdrawl_32_Days",\
             "Withdrawl_60_Days","Withdrawl_90_Days","Withdrawl_Lifetime",\
-            'Avg_Bet_7_Days','Avg_Bet_14_Days', 'Avg_Bet_32_Days', 'Avg_Bet_60_Days',\
-             'Avg_Bet_90_Days', 'NGR_7_Days', 'NGR_14_Days', 'NGR_32_Days',\
+            'Avg_Bet_7_Days','Avg_Bet_14_Days','Avg_Bet_21_Days', 'Avg_Bet_32_Days', 'Avg_Bet_60_Days',\
+             'Avg_Bet_90_Days', 'NGR_7_Days', 'NGR_14_Days','NGR_21_Days', 'NGR_32_Days',\
              'NGR_60_Days', 'NGR_90_Days', 'NGR_lifetime', 'GGR_Lifetime',\
-             'NGR_Deposits_7_Days', 'NGR_Deposits_14_Days', 'NGR_Deposits_32_Days',\
+             'NGR_Deposits_7_Days', 'NGR_Deposits_14_Days','NGR_Deposits_21_Days', 'NGR_Deposits_32_Days',\
              'NGR_Deposits_60_Days', 'NGR_Deposits_90_Days', 'Player_Balance',\
              'Deposit_Payout_Percent','Payout_Percent', 'Net_deposits', 'Bonus_Used']].apply(lambda x:round(x,2))
 
