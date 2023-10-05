@@ -261,8 +261,6 @@ engine = create_engine('postgresql://orpctbsqvqtnrx:530428203217ce11da9eb9586a55
 
 help_desk_info = pd.read_sql_query("select * from last_contact_info", con=engine)
 
-VIP_Summary['email'] = VIP_Summary['email'].str.decode("utf-8")
-
 VIP_Summary_f = VIP_Summary.merge(help_desk_info, left_on = 'email', right_on = 'requester_email' , how = 'left')
 
 VIP_Summary_f.drop(['index','email','requester_email'], axis=1, inplace = True)
