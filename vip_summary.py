@@ -7,6 +7,8 @@ import numpy as np
 import mysql.connector
 from mysql.connector import Error
 
+from sqlalchemy import create_engine
+
 try:
     connection = mysql.connector.connect(host='206.189.96.57',
                                          database='platform',
@@ -23,10 +25,10 @@ try:
 except Error as e:
     print("Error while connecting to MySQL", e)
 
-VIP_Summary = pd.read_sql_query("with base as (\
+VIP_Summary = pd.read_sql_query("with base as ( \
 select a.customer_fk, c.name as merchant_name,referral_info, d.country_desc, \
 DATEDIFF(SYSDATE(),date(b.last_activity_time)) as days_since_last_login, \
-e.lang_desc, email \
+e.lang_desc, email, login, DATEDIFF(SYSDATE(),date(a.full_reg_complete)) as days_since_register \
 from platform.customer_attributes as a \
 left join platform.customers as b \
 on a.customer_fk = b.id \
@@ -49,14 +51,13 @@ select customer_fk, date(c_date) as txn_date, count(id)  as dpst_cnt, \
 DATEDIFF(SYSDATE(),date(c_date)) as date_diff_dpst, \
 sum(amount/rate_to_eur) as  deposit_amount_eur from txn_base \
 where trx_type = 'DEPOSIT' \
-group by 1,2),\
+group by 1,2), \
 wtdrl_rlp as ( \
 select customer_fk, date(c_date) as wtdrl_date, \
 DATEDIFF(SYSDATE(),date(c_date)) as date_diff_wtdrl, \
-count(id)  as dpst_cnt,sum(amount/rate_to_eur) as  wtdrl_amount_eur from txn_base \
+count(id)  as withdrawl_cnt,sum(amount/rate_to_eur) as  wtdrl_amount_eur from txn_base \
 where trx_type = 'WITHDRAWAL' \
-group by 1,2 \
-), \
+group by 1,2), \
 net_dpst as ( \
 select customer_fk, sum(case when trx_type = 'DEPOSIT' then amount/rate_to_eur else 0 end) as total_deposits, \
 sum(case when trx_type = 'WITHDRAWAL' then amount/rate_to_eur else 0 end) as total_withdrawals \
@@ -88,31 +89,7 @@ sum(finished_games_real_money) as games, \
 sum(GGR_base_currency) as GGR, \
 sum(total_returns_base_currency) as  returns_1 \
 from platform.games_per_customer_summaries \
-group by 1,2 ),\
-\
-bonus_base as ( \
-select a.*, b.currency_fk, c.rate_to_eur, (a.winning_amount /c.rate_to_eur) as win_amount_euro, \
-d.promo_code, d.description, e.name as merchant_name, f.referral_info, g.country_desc as country_name \
-from platform.customer_bonuses as a \
-left join platform.customers as b \
-on a.customer_fk  = b.id \
-left join platform.currencies as c \
-on b.currency_fk = c.id \
-left join platform.bonuses as d \
-on a.bonus_fk = d.id \
-left join platform.merchants as e \
-on a.merchant_fk = e.id \
-left join platform.customer_attributes as f \
-on a.customer_fk = f.customer_fk \
-left join platform.countries as g \
-on b.country_fk = g.id \
-where a.status  = 'WIN'), \
-\
-bonus_base_1 as ( \
-SELECT customer_fk, \
-sum(win_amount_euro) as mkt_expense from bonus_base as a \
-group by 1 \
-having mkt_expense > 0), \
+group by 1,2 ), \
 \
 average_games as (select customer_fk, (sum(finished_games_real_money)/ count(DISTINCT summary_day))  as avg_games_cnt from platform.games_per_customer_summaries gpcs \
 group by 1 \
@@ -128,7 +105,8 @@ sum(case when date_diff_dpst <= 60 then deposit_amount_eur else 0  end ) as depo
 sum(case when date_diff_dpst <= 90 then deposit_amount_eur else 0  end ) as deposit_90_days, \
 sum(deposit_amount_eur) as deposit_lifetime, \
 sum(dpst_cnt) as total_deposits_count, \
-min(date_diff_dpst) as days_since_last_deposit \
+min(date_diff_dpst) as days_since_last_deposit ,\
+max(date_diff_dpst) as days_since_first_deposit \
 from dpst_rlp \
 group by 1), \
 \
@@ -139,7 +117,8 @@ sum(case when date_diff_wtdrl <= 21 then wtdrl_amount_eur else 0  end ) as Withd
 sum(case when date_diff_wtdrl <= 32 then wtdrl_amount_eur else 0  end ) as Withdrawl_32_Days, \
 sum(case when date_diff_wtdrl <= 60 then wtdrl_amount_eur else 0  end ) as Withdrawl_60_Days, \
 sum(case when date_diff_wtdrl <= 90 then wtdrl_amount_eur else 0  end ) as Withdrawl_90_Days, \
-sum(wtdrl_amount_eur) as Withdrawl_lifetime \
+sum(wtdrl_amount_eur) as Withdrawl_lifetime, \
+sum(withdrawl_cnt) as withdrawl_count \
 from wtdrl_rlp \
 group by 1), \
 \
@@ -160,7 +139,63 @@ sum(GGR) as GGR_lifetime, \
 (sum(case when date_diff_rev <= 90 then bets else 0  end ) / sum(case when date_diff_rev <= 90 then games else 0  end )) as Avg_Bet_90_Days, \
 sum(returns_1)/sum(bets) as Payout_Percent \
 from revenues \
-group by 1) \
+group by 1), \
+\
+1k_base as ( \
+select customer_fk, (amount/rate_to_eur) as amount_euro, \
+date(c_date) as txn_date  from platform.customer_transactions as a \
+left join (select distinct id, rate_to_eur from platform.currencies where is_valid = 1) as b \
+on a.currency_fk = b.id \
+where trx_type = 'DEPOSIT' \
+and status in ('APPROVED','SUCCESSFUL')), \
+\
+1k_base_1 as ( \
+select customer_fk, txn_date, sum(amount_euro) as deposits from 1k_base \
+group by 1,2), \
+\
+1k_base_2 as ( \
+select customer_fk, txn_date,deposits, \
+sum(deposits) over ( PARTITION by customer_fk order by txn_date asc ) as total_dpst from 1k_base_1), \
+ \
+1k_base_3 as ( \
+select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as 1k_date  from 1k_base_2 \
+where total_dpst >= 1000), \
+\
+1k_base_4 as ( \
+select a.customer_fk, txn_date as date_of_reaching_1k from 1k_base_3 as a \
+left join platform.customers as b \
+on a.customer_fk = b.id \
+where 1k_date = 1), \
+\
+bonus_base as ( \
+select a.*, b.currency_fk, c.rate_to_eur, (a.winning_amount /c.rate_to_eur) as win_amount_euro, \
+d.promo_code, d.description, e.name as merchant_name, f.referral_info, g.country_desc as country_name, \
+date_of_reaching_1k,date(a.c_date) as bonus_date \
+from platform.customer_bonuses as a \
+left join platform.customers as b \
+on a.customer_fk  = b.id \
+left join platform.currencies as c \
+on b.currency_fk = c.id \
+left join platform.bonuses as d \
+on a.bonus_fk = d.id \
+left join platform.merchants as e \
+on a.merchant_fk = e.id \
+left join platform.customer_attributes as f \
+on a.customer_fk = f.customer_fk \
+left join platform.countries as g \
+on b.country_fk = g.id \
+left join 1k_base_4 as h \
+on a.customer_fk = h.customer_fk \
+where a.status  = 'WIN'), \
+\
+bonus_base_1 as ( \
+SELECT customer_fk, \
+sum(win_amount_euro) as mkt_expense, \
+sum(case when win_amount_euro > 0  then 1 else  0  end) as bonus_count, \
+sum(case when win_amount_euro > 0 and (bonus_date >=  date_of_reaching_1k ) then 1 else  0  end) as vip_bonus_count \
+from bonus_base as a \
+group by 1 \
+having mkt_expense > 0) \
 \
 select a.customer_fk as Customer_ID, \
 a.merchant_name as Brand, \
@@ -175,12 +210,13 @@ Withdrawl_7_Days, Withdrawl_14_Days,Withdrawl_21_Days, Withdrawl_32_Days, Withdr
 Avg_Bet_7_Days, Avg_Bet_14_Days,Avg_Bet_21_Days, Avg_Bet_32_Days, Avg_Bet_60_Days, Avg_Bet_90_Days, \
 NGR_7_Days, NGR_14_Days,NGR_21_Days, NGR_32_Days, NGR_60_Days, NGR_90_Days, NGR_lifetime, GGR_Lifetime, \
 (NGR_7_Days/deposit_7_days) as NGR_Deposits_7_Days, (NGR_14_Days/deposit_14_days) as NGR_Deposits_14_Days, \
-(NGR_21_Days/deposit_21_days) as NGR_Deposits_21_Days,\
+(NGR_21_Days/deposit_21_days) as NGR_Deposits_21_Days, \
 (NGR_32_Days/deposit_32_days) as NGR_Deposits_32_Days, (NGR_60_Days/deposit_60_days) as NGR_Deposits_60_Days, \
 (NGR_90_Days/deposit_90_days) as NGR_Deposits_90_Days, balance_base_currency as Player_Balance, \
 (Withdrawl_Lifetime / Deposit_Lifetime ) as Deposit_Payout_Percent, Payout_Percent, \
 (Deposit_Lifetime - Withdrawl_Lifetime )  as Net_deposits, mkt_expense as Bonus_Used,date_of_reaching_1k, \
-case when email like '%blocked%' then 1 else 0 end as is_blocked \
+case when email like '%blocked%' then 1 else 0 end as is_blocked, login as username , withdrawl_count, days_since_first_deposit, \
+days_since_register, bonus_count, vip_bonus_count, email \
 from base as a \
 left join revenues_f as b \
 on a.customer_fk = b.customer_fk \
@@ -194,31 +230,7 @@ left join bet_day as f \
 on a.customer_fk = f.customer_fk \
 left join bonus_base_1 as g \
 on a.customer_fk = g.customer_fk \
-inner join (with 1k_base as (\
-select customer_fk, (amount/rate_to_eur) as amount_euro,\
-date(c_date) as txn_date  from platform.customer_transactions as a \
-left join (select distinct id, rate_to_eur from platform.currencies where is_valid = 1) as b \
-on a.currency_fk = b.id \
-where trx_type = 'DEPOSIT' \
-and status in ('APPROVED','SUCCESSFUL')), \
-\
-1k_base_1 as (\
-select customer_fk, txn_date, sum(amount_euro) as deposits from 1k_base \
-group by 1,2), \
-\
-1k_base_2 as ( \
-select customer_fk, txn_date,deposits, \
-sum(deposits) over ( PARTITION by customer_fk order by txn_date asc ) as total_dpst from 1k_base_1), \
-\
-1k_base_3 as ( \
-select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as 1k_date  from 1k_base_2 \
-where total_dpst >= 1000) \
-\
-select a.customer_fk, txn_date as date_of_reaching_1k from 1k_base_3 as a \
-left join platform.customers as b \
-on a.customer_fk = b.id \
-where 1k_date = 1 \
-) as i \
+inner join 1k_base_4 as i \
 on a.customer_fk = i.customer_fk", con=connection)
 
 VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_days",\
@@ -244,13 +256,23 @@ VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_da
              'NGR_Deposits_60_Days', 'NGR_Deposits_90_Days', 'Player_Balance',\
              'Deposit_Payout_Percent','Payout_Percent', 'Net_deposits', 'Bonus_Used']].apply(lambda x:round(x,2))
 
+engine = create_engine('postgresql://orpctbsqvqtnrx:530428203217ce11da9eb9586a5513d0c7fe08555c116c103fd43fb78a81c944@ec2-34-202-53-101.compute-1.amazonaws.com:5432/d46bn1u52baq92',\
+                           echo = False)
+
+help_desk_info = pd.read_sql_query("select * from last_contact_info", con=engine)
+
+VIP_Summary['email'] = VIP_Summary['email'].str.decode("utf-8")
+
+VIP_Summary_f = VIP_Summary.merge(help_desk_info, left_on = 'email', right_on = 'requester_email' , how = 'left')
+
+VIP_Summary_f.drop(['index','email','requester_email'], axis=1, inplace = True)
 
 date = dt.datetime.today()-  timedelta(1)
 date_1 = date.strftime("%m-%d-%Y")
 filename = f'VIP_Customer_Details_{date_1}.xlsx'
 
 with pd.ExcelWriter(filename) as writer:
-    VIP_Summary.reset_index(drop=True).to_excel(writer, sheet_name="VIP_Summary",index=False)
+    VIP_Summary_f.reset_index(drop=True).to_excel(writer, sheet_name="VIP_Summary",index=False)
 
 
 sub = f'VIP_Customer_Details - {date_1}'
