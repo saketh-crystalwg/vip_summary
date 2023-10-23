@@ -309,6 +309,6 @@ body = f"Hi,\n\n Attached contains list of VIP customer Details as of {date_1}\n
 sender = "sakethg250@gmail.com"
 recipients = ["saketh@crystalwg.com","alberto@crystalwg.com",\
              "isaac@crystalwg.com","ron@crystalwg.com","sebastian@crystalwg.com",\
-             "rafael@crystalwg.com","sandra@crystalwg.com","ximena@crystalwg.com","erika@crystalwg.com"]
+             "rafael@crystalwg.com","sandra@crystalwg.com","ximena@crystalwg.com","erika@crystalwg.com","camila@crystalwg.com"]
 password = "ztrgzuxuzwbgfskf"
 send_mail(sender, recipients, subject, body, "smtp.gmail.com", 465,sender,password)
