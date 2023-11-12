@@ -158,19 +158,19 @@ select customer_fk, txn_date,deposits, \
 sum(deposits) over ( PARTITION by customer_fk order by txn_date asc ) as total_dpst from 1k_base_1), \
  \
 1k_base_3 as ( \
-select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as 1k_date  from 1k_base_2 \
-where total_dpst >= 1000), \
+select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as 750_date  from 1k_base_2 \
+where total_dpst >= 750), \
 \
 1k_base_4 as ( \
-select a.customer_fk, txn_date as date_of_reaching_1k from 1k_base_3 as a \
+select a.customer_fk, txn_date as date_of_reaching_750 from 1k_base_3 as a \
 left join platform.customers as b \
 on a.customer_fk = b.id \
-where 1k_date = 1), \
+where 750_date = 1), \
 \
 bonus_base as ( \
 select a.*, b.currency_fk, c.rate_to_eur, (a.winning_amount /c.rate_to_eur) as win_amount_euro, \
 d.promo_code, d.description, e.name as merchant_name, f.referral_info, g.country_desc as country_name, \
-date_of_reaching_1k,date(a.c_date) as bonus_date \
+date_of_reaching_750,date(a.c_date) as bonus_date \
 from platform.customer_bonuses as a \
 left join platform.customers as b \
 on a.customer_fk  = b.id \
@@ -192,7 +192,7 @@ bonus_base_1 as ( \
 SELECT customer_fk, \
 sum(win_amount_euro) as mkt_expense, \
 sum(case when win_amount_euro > 0  then 1 else  0  end) as bonus_count, \
-sum(case when win_amount_euro > 0 and (bonus_date >=  date_of_reaching_1k ) then 1 else  0  end) as vip_bonus_count \
+sum(case when win_amount_euro > 0 and (bonus_date >=  date_of_reaching_750 ) then 1 else  0  end) as vip_bonus_count \
 from bonus_base as a \
 group by 1 \
 having mkt_expense > 0) \
@@ -214,7 +214,7 @@ NGR_7_Days, NGR_14_Days,NGR_21_Days, NGR_32_Days, NGR_60_Days, NGR_90_Days, NGR_
 (NGR_32_Days/deposit_32_days) as NGR_Deposits_32_Days, (NGR_60_Days/deposit_60_days) as NGR_Deposits_60_Days, \
 (NGR_90_Days/deposit_90_days) as NGR_Deposits_90_Days, balance_base_currency as Player_Balance, \
 (Withdrawl_Lifetime / Deposit_Lifetime ) as Deposit_Payout_Percent, Payout_Percent, \
-(Deposit_Lifetime - Withdrawl_Lifetime )  as Net_deposits, mkt_expense as Bonus_Used,date_of_reaching_1k, \
+(Deposit_Lifetime - Withdrawl_Lifetime )  as Net_deposits, mkt_expense as Bonus_Used,date_of_reaching_750, \
 case when email like '%blocked%' then 1 else 0 end as is_blocked, login as username , withdrawl_count, days_since_first_deposit, \
 days_since_register, bonus_count, vip_bonus_count, email \
 from base as a \
