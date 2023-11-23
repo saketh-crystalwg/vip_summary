@@ -165,7 +165,7 @@ where total_dpst >= 750), \
 select a.customer_fk, txn_date as date_of_reaching_750 from 1k_base_3 as a \
 left join platform.customers as b \
 on a.customer_fk = b.id \
-), \
+where 750_date = 1), \
 \
 bonus_base as ( \
 select a.*, b.currency_fk, c.rate_to_eur, (a.winning_amount /c.rate_to_eur) as win_amount_euro, \
@@ -230,7 +230,7 @@ left join bet_day as f \
 on a.customer_fk = f.customer_fk \
 left join bonus_base_1 as g \
 on a.customer_fk = g.customer_fk \
-inner join 1k_base_4 as i \
+left join 1k_base_4 as i \
 on a.customer_fk = i.customer_fk", con=connection)
 
 VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_days",\
