@@ -165,7 +165,7 @@ where total_dpst >= 750), \
 select a.customer_fk, txn_date as date_of_reaching_750 from 1k_base_3 as a \
 left join platform.customers as b \
 on a.customer_fk = b.id \
-where 750_date = 1), \
+), \
 \
 bonus_base as ( \
 select a.*, b.currency_fk, c.rate_to_eur, (a.winning_amount /c.rate_to_eur) as win_amount_euro, \
@@ -256,24 +256,32 @@ VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_da
              'NGR_Deposits_60_Days', 'NGR_Deposits_90_Days', 'Player_Balance',\
              'Deposit_Payout_Percent','Payout_Percent', 'Net_deposits', 'Bonus_Used']].apply(lambda x:round(x,2))
 
+VIP_Summary['VIP_Segment'] = ['VIP Customer' if x >= 1000 \
+                              else 'Pre VIP Customer' if x >= 750  and x < 1000 \
+                             else 'Potential VIP Customer' if (x >= 250 and x < 750) or y >= 10 \
+                              else 'Non VIP Customers' for x,y in zip(VIP_Summary['Deposit_Lifetime'],VIP_Summary['Total_Deposits_Count'])]
+
+VIP_Summary_1 = VIP_Summary[VIP_Summary['VIP_Segment'] != 'Non VIP Customers']
+
+
 engine = create_engine('postgresql://orpctbsqvqtnrx:530428203217ce11da9eb9586a5513d0c7fe08555c116c103fd43fb78a81c944@ec2-34-202-53-101.compute-1.amazonaws.com:5432/d46bn1u52baq92',\
                            echo = False)
 
 help_desk_info = pd.read_sql_query("select * from last_contact_info", con=engine)
 
-VIP_Summary_f = VIP_Summary.merge(help_desk_info, left_on = 'email', right_on = 'requester_email' , how = 'left')
+VIP_Summary_f = VIP_Summary_1.merge(help_desk_info, left_on = 'email', right_on = 'requester_email' , how = 'left')
 
 VIP_Summary_f.drop(['index','email','requester_email'], axis=1, inplace = True)
 
 date = dt.datetime.today()-  timedelta(1)
 date_1 = date.strftime("%m-%d-%Y")
-filename = f'VIP_Customer_Details_{date_1}.xlsx'
+filename = f'VIP_Customer_Segments_{date_1}.xlsx'
 
 with pd.ExcelWriter(filename) as writer:
     VIP_Summary_f.reset_index(drop=True).to_excel(writer, sheet_name="VIP_Summary",index=False)
 
 
-sub = f'VIP_Customer_Details - {date_1}'
+sub = f'VIP_Customer_Segments - {date_1}'
 
 #!/usr/bin/python
 import smtplib,ssl
@@ -305,7 +313,7 @@ def send_mail(send_from,send_to,subject,text,server,port,username='',password=''
     smtp.quit()
     
 subject = sub
-body = f"Hi,\n\n Attached contains list of VIP customer Details as of {date_1}\n\nThanks,\nSaketh"
+body = f"Hi,\n\n Attached contains list of VIP customer Segments as of {date_1}\n\nThanks,\nSaketh"
 sender = "sakethg250@gmail.com"
 recipients = ["saketh@crystalwg.com","alberto@crystalwg.com",\
              "isaac@crystalwg.com","ron@crystalwg.com","sebastian@crystalwg.com",\
