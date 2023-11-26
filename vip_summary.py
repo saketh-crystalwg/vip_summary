@@ -142,7 +142,7 @@ from revenues \
 group by 1), \
 \
 1k_base as ( \
-select customer_fk, (amount/rate_to_eur) as amount_euro, \
+select customer_fk,a.id, (amount/rate_to_eur) as amount_euro, \
 date(c_date) as txn_date  from platform.customer_transactions as a \
 left join (select distinct id, rate_to_eur from platform.currencies where is_valid = 1) as b \
 on a.currency_fk = b.id \
@@ -156,21 +156,47 @@ group by 1,2), \
 1k_base_2 as ( \
 select customer_fk, txn_date,deposits, \
 sum(deposits) over ( PARTITION by customer_fk order by txn_date asc ) as total_dpst from 1k_base_1), \
- \
-1k_base_3 as ( \
+\
+750_base_3 as ( \
 select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as 750_date  from 1k_base_2 \
 where total_dpst >= 750), \
 \
-1k_base_4 as ( \
-select a.customer_fk, txn_date as date_of_reaching_750 from 1k_base_3 as a \
-left join platform.customers as b \
-on a.customer_fk = b.id \
+750_base_4 as ( \
+select a.customer_fk, txn_date as date_of_reaching_750 from 750_base_3 as a \
 where 750_date = 1), \
+\
+1k_base_3 as ( \
+select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as 1k_date  from 1k_base_2 \
+where total_dpst >= 1000), \
+\
+1k_base_4 as ( \
+select a.customer_fk, txn_date as date_of_reaching_1k from 1k_base_3 as a \
+where 1k_date = 1), \
+\
+250_base_3 as ( \
+select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as 250_date  from 1k_base_2 \
+where total_dpst >= 250), \
+\
+250_base_4 as ( \
+select a.customer_fk, txn_date as date_of_reaching_250 from 250_base_3 as a \
+where 250_date = 1), \
+\
+txn_base_cnt as ( \
+select customer_fk, txn_date,id, \
+ROW_NUMBER() over (PARTITION by customer_fk order by txn_date asc ) as total_dpst_cnt from 1k_base), \
+\
+txn_base_cnt_1 as ( \
+select *, ROW_NUMBER()over(PARTITION by customer_fk order by txn_date asc) as txn_cnt from txn_base_cnt \
+where total_dpst_cnt >= 10),\
+\
+txn_base_cnt_2 as ( \
+select customer_fk, txn_date as 10_txn_date from txn_base_cnt_1 \
+where txn_cnt = 1),\
 \
 bonus_base as ( \
 select a.*, b.currency_fk, c.rate_to_eur, (a.winning_amount /c.rate_to_eur) as win_amount_euro, \
 d.promo_code, d.description, e.name as merchant_name, f.referral_info, g.country_desc as country_name, \
-date_of_reaching_750,date(a.c_date) as bonus_date \
+date_of_reaching_1k,date(a.c_date) as bonus_date \
 from platform.customer_bonuses as a \
 left join platform.customers as b \
 on a.customer_fk  = b.id \
@@ -192,10 +218,10 @@ bonus_base_1 as ( \
 SELECT customer_fk, \
 sum(win_amount_euro) as mkt_expense, \
 sum(case when win_amount_euro > 0  then 1 else  0  end) as bonus_count, \
-sum(case when win_amount_euro > 0 and (bonus_date >=  date_of_reaching_750 ) then 1 else  0  end) as vip_bonus_count \
+sum(case when win_amount_euro > 0 and (bonus_date >=  date_of_reaching_1k ) then 1 else  0  end) as vip_bonus_count \
 from bonus_base as a \
 group by 1 \
-having mkt_expense > 0) \
+having mkt_expense > 0)\
 \
 select a.customer_fk as Customer_ID, \
 a.merchant_name as Brand, \
@@ -214,9 +240,10 @@ NGR_7_Days, NGR_14_Days,NGR_21_Days, NGR_32_Days, NGR_60_Days, NGR_90_Days, NGR_
 (NGR_32_Days/deposit_32_days) as NGR_Deposits_32_Days, (NGR_60_Days/deposit_60_days) as NGR_Deposits_60_Days, \
 (NGR_90_Days/deposit_90_days) as NGR_Deposits_90_Days, balance_base_currency as Player_Balance, \
 (Withdrawl_Lifetime / Deposit_Lifetime ) as Deposit_Payout_Percent, Payout_Percent, \
-(Deposit_Lifetime - Withdrawl_Lifetime )  as Net_deposits, mkt_expense as Bonus_Used,date_of_reaching_750, \
+(Deposit_Lifetime - Withdrawl_Lifetime )  as Net_deposits, mkt_expense as Bonus_Used,date_of_reaching_750, date_of_reaching_1k,\
+date_of_reaching_250, \
 case when email like '%blocked%' then 1 else 0 end as is_blocked, login as username , withdrawl_count, days_since_first_deposit, \
-days_since_register, bonus_count, vip_bonus_count, email \
+days_since_register, bonus_count, vip_bonus_count, email, l.10_txn_date \
 from base as a \
 left join revenues_f as b \
 on a.customer_fk = b.customer_fk \
@@ -230,8 +257,15 @@ left join bet_day as f \
 on a.customer_fk = f.customer_fk \
 left join bonus_base_1 as g \
 on a.customer_fk = g.customer_fk \
-left join 1k_base_4 as i \
-on a.customer_fk = i.customer_fk", con=connection)
+left join 750_base_4 as i \
+on a.customer_fk = i.customer_fk \
+left join 1k_base_4 as j \
+on a.customer_fk = j.customer_fk \
+left join 250_base_4 as k \
+on a.customer_fk = k.customer_fk \
+left join txn_base_cnt_2 as l \
+on a.customer_fk = l.customer_fk", con=connection)
+
 
 VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_days",\
             "Deposit_60_days","Deposit_90_days","Total_Deposits_Count",\
@@ -255,6 +289,12 @@ VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_da
              'NGR_Deposits_7_Days', 'NGR_Deposits_14_Days','NGR_Deposits_21_Days', 'NGR_Deposits_32_Days',\
              'NGR_Deposits_60_Days', 'NGR_Deposits_90_Days', 'Player_Balance',\
              'Deposit_Payout_Percent','Payout_Percent', 'Net_deposits', 'Bonus_Used']].apply(lambda x:round(x,2))
+
+VIP_Summary.rename(columns = {'date_of_reaching_1k': 'date_of_VIP',\
+                       'date_of_reaching_750': 'date_of_Pre_VIP'}, inplace = True)
+
+VIP_Summary['date_of_Potential_VIP'] = VIP_Summary[['10_txn_date','date_of_reaching_250']].min(axis=1)
+
 
 VIP_Summary['VIP_Segment'] = ['VIP Customer' if x >= 1000 \
                               else 'Pre VIP Customer' if x >= 750  and x < 1000 \
