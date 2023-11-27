@@ -293,15 +293,17 @@ VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_da
 VIP_Summary.rename(columns = {'date_of_reaching_1k': 'date_of_VIP',\
                        'date_of_reaching_750': 'date_of_Pre_VIP'}, inplace = True)
 
-VIP_Summary['date_of_Potential_VIP'] = VIP_Summary[['10_txn_date','date_of_reaching_250']].min(axis=1)
-
-
 VIP_Summary['VIP_Segment'] = ['VIP Customer' if x >= 1000 \
                               else 'Pre VIP Customer' if x >= 750  and x < 1000 \
                              else 'Potential VIP Customer' if (x >= 250 and x < 750) or y >= 10 \
                               else 'Non VIP Customers' for x,y in zip(VIP_Summary['Deposit_Lifetime'],VIP_Summary['Total_Deposits_Count'])]
 
 VIP_Summary_1 = VIP_Summary[VIP_Summary['VIP_Segment'] != 'Non VIP Customers']
+
+VIP_Summary_1['date_of_Potential_VIP'] = [x if pd.isnull(y)\
+                                        else y if  pd.isnull(x)\
+                                       else  x  if x < y \
+                                       else y for x,y in zip(VIP_Summary_1['10_txn_date'],VIP_Summary_1['date_of_reaching_250'])]
 
 
 engine = create_engine('postgresql://orpctbsqvqtnrx:530428203217ce11da9eb9586a5513d0c7fe08555c116c103fd43fb78a81c944@ec2-34-202-53-101.compute-1.amazonaws.com:5432/d46bn1u52baq92',\
