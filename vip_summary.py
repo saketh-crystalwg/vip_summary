@@ -28,7 +28,7 @@ except Error as e:
 VIP_Summary = pd.read_sql_query("with base as ( \
 select a.customer_fk, c.name as merchant_name,referral_info, d.country_desc, \
 DATEDIFF(SYSDATE(),date(b.last_activity_time)) as days_since_last_login, \
-e.lang_desc, email, login, DATEDIFF(SYSDATE(),date(a.full_reg_complete)) as days_since_register \
+e.lang_desc, email, login \
 from platform.customer_attributes as a \
 left join platform.customers as b \
 on a.customer_fk = b.id \
@@ -97,46 +97,25 @@ order by customer_fk desc \
 ), \
 \
 dpst_f as ( \
-select customer_fk, sum(case when date_diff_dpst <= 7 then deposit_amount_eur else 0  end ) as deposit_7_days, \
-sum(case when date_diff_dpst <= 14 then deposit_amount_eur else 0  end ) as deposit_14_days, \
-sum(case when date_diff_dpst <= 21 then deposit_amount_eur else 0  end ) as deposit_21_days, \
-sum(case when date_diff_dpst <= 32 then deposit_amount_eur else 0  end ) as deposit_32_days, \
-sum(case when date_diff_dpst <= 60 then deposit_amount_eur else 0  end ) as deposit_60_days, \
-sum(case when date_diff_dpst <= 90 then deposit_amount_eur else 0  end ) as deposit_90_days, \
+select customer_fk, \
 sum(deposit_amount_eur) as deposit_lifetime, \
 sum(dpst_cnt) as total_deposits_count, \
-min(date_diff_dpst) as days_since_last_deposit ,\
-max(date_diff_dpst) as days_since_first_deposit \
+min(date_diff_dpst) as days_since_last_deposit \
 from dpst_rlp \
 group by 1), \
 \
 wtdrl_f as ( \
-select customer_fk, sum(case when date_diff_wtdrl <= 7 then wtdrl_amount_eur else 0  end ) as Withdrawl_7_Days, \
-sum(case when date_diff_wtdrl <= 14 then wtdrl_amount_eur else 0  end ) as Withdrawl_14_Days, \
-sum(case when date_diff_wtdrl <= 21 then wtdrl_amount_eur else 0  end ) as Withdrawl_21_Days, \
-sum(case when date_diff_wtdrl <= 32 then wtdrl_amount_eur else 0  end ) as Withdrawl_32_Days, \
-sum(case when date_diff_wtdrl <= 60 then wtdrl_amount_eur else 0  end ) as Withdrawl_60_Days, \
-sum(case when date_diff_wtdrl <= 90 then wtdrl_amount_eur else 0  end ) as Withdrawl_90_Days, \
+select customer_fk,  \
 sum(wtdrl_amount_eur) as Withdrawl_lifetime, \
 sum(withdrawl_cnt) as withdrawl_count \
 from wtdrl_rlp \
 group by 1), \
 \
 revenues_f as ( \
-select customer_fk, sum(case when date_diff_rev <= 7 then NGR else 0  end ) as NGR_7_Days, \
-sum(case when date_diff_rev <= 14 then NGR else 0  end ) as NGR_14_Days, \
-sum(case when date_diff_rev <= 21 then NGR else 0  end ) as NGR_21_Days, \
-sum(case when date_diff_rev <= 32 then NGR else 0  end ) as NGR_32_Days, \
-sum(case when date_diff_rev <= 60 then NGR else 0  end ) as NGR_60_Days, \
-sum(case when date_diff_rev <= 90 then NGR else 0  end ) as NGR_90_Days, \
+select customer_fk,  \
 sum(NGR) as NGR_lifetime, \
 sum(GGR) as GGR_lifetime, \
-(sum(case when date_diff_rev <= 7 then bets else 0  end ) / sum(case when date_diff_rev <= 7 then games else 0  end ))  as Avg_Bet_7_Days, \
-(sum(case when date_diff_rev <= 14 then bets else 0  end ) / sum(case when date_diff_rev <= 14 then games else 0  end )) as Avg_Bet_14_Days, \
-(sum(case when date_diff_rev <= 21 then bets else 0  end ) / sum(case when date_diff_rev <= 21 then games else 0  end )) as Avg_Bet_21_Days, \
-(sum(case when date_diff_rev <= 32 then bets else 0  end ) / sum(case when date_diff_rev <= 32 then games else 0  end )) as Avg_Bet_32_Days, \
-(sum(case when date_diff_rev <= 60 then bets else 0  end ) / sum(case when date_diff_rev <= 60 then games else 0  end )) as Avg_Bet_60_Days, \
-(sum(case when date_diff_rev <= 90 then bets else 0  end ) / sum(case when date_diff_rev <= 90 then games else 0  end )) as Avg_Bet_90_Days, \
+ \
 sum(returns_1)/sum(bets) as Payout_Percent \
 from revenues \
 group by 1), \
@@ -231,19 +210,15 @@ a.lang_desc as Language, \
 Days_since_last_login, \
 DATEDIFF(SYSDATE(),date(f.last_bet_date)) as Days_since_last_bet, \
 Days_since_last_deposit, \
-Deposit_7_days, Deposit_14_days,Deposit_21_days, Deposit_32_days, Deposit_60_days, Deposit_90_days, Total_Deposits_Count, Deposit_Lifetime, \
-Withdrawl_7_Days, Withdrawl_14_Days,Withdrawl_21_Days, Withdrawl_32_Days, Withdrawl_60_Days, Withdrawl_90_Days, Withdrawl_Lifetime, \
-Avg_Bet_7_Days, Avg_Bet_14_Days,Avg_Bet_21_Days, Avg_Bet_32_Days, Avg_Bet_60_Days, Avg_Bet_90_Days, \
-NGR_7_Days, NGR_14_Days,NGR_21_Days, NGR_32_Days, NGR_60_Days, NGR_90_Days, NGR_lifetime, GGR_Lifetime, \
-(NGR_7_Days/deposit_7_days) as NGR_Deposits_7_Days, (NGR_14_Days/deposit_14_days) as NGR_Deposits_14_Days, \
-(NGR_21_Days/deposit_21_days) as NGR_Deposits_21_Days, \
-(NGR_32_Days/deposit_32_days) as NGR_Deposits_32_Days, (NGR_60_Days/deposit_60_days) as NGR_Deposits_60_Days, \
-(NGR_90_Days/deposit_90_days) as NGR_Deposits_90_Days, balance_base_currency as Player_Balance, \
-(Withdrawl_Lifetime / Deposit_Lifetime ) as Deposit_Payout_Percent, Payout_Percent, \
+ Total_Deposits_Count, Deposit_Lifetime, \
+ Withdrawl_Lifetime, \
+ \
+ NGR_lifetime, GGR_Lifetime, \
+balance_base_currency as Player_Balance, \
 (Deposit_Lifetime - Withdrawl_Lifetime )  as Net_deposits, mkt_expense as Bonus_Used,date_of_reaching_750, date_of_reaching_1k,\
 date_of_reaching_250, \
-case when email like '%blocked%' then 1 else 0 end as is_blocked, login as username , withdrawl_count, days_since_first_deposit, \
-days_since_register, bonus_count, vip_bonus_count, email, l.10_txn_date \
+case when email like '%blocked%' then 1 else 0 end as is_blocked, login as username , withdrawl_count, \
+bonus_count, vip_bonus_count, email, l.10_txn_date \
 from base as a \
 left join revenues_f as b \
 on a.customer_fk = b.customer_fk \
@@ -267,28 +242,16 @@ left join txn_base_cnt_2 as l \
 on a.customer_fk = l.customer_fk", con=connection)
 
 
-VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_days",\
-            "Deposit_60_days","Deposit_90_days","Total_Deposits_Count",\
-            "Deposit_Lifetime","Withdrawl_7_Days",\
-            "Withdrawl_14_Days","Withdrawl_21_Days","Withdrawl_32_Days",\
-            "Withdrawl_60_Days","Withdrawl_90_Days","Withdrawl_Lifetime",\
-            'Avg_Bet_7_Days','Avg_Bet_14_Days','Avg_Bet_21_Days', 'Avg_Bet_32_Days', 'Avg_Bet_60_Days',\
-             'Avg_Bet_90_Days', 'NGR_7_Days', 'NGR_14_Days','NGR_21_Days', 'NGR_32_Days',\
-             'NGR_60_Days', 'NGR_90_Days', 'NGR_lifetime', 'GGR_Lifetime',\
-             'NGR_Deposits_7_Days', 'NGR_Deposits_14_Days','NGR_Deposits_21_Days', 'NGR_Deposits_32_Days',\
-             'NGR_Deposits_60_Days', 'NGR_Deposits_90_Days', 'Player_Balance',\
-             'Deposit_Payout_Percent','Payout_Percent', 'Net_deposits', 'Bonus_Used']]\
-= VIP_Summary[["Deposit_7_days","Deposit_14_days","Deposit_21_days","Deposit_32_days",\
-            "Deposit_60_days","Deposit_90_days","Total_Deposits_Count",\
-            "Deposit_Lifetime","Withdrawl_7_Days",\
-            "Withdrawl_14_Days","Withdrawl_21_Days","Withdrawl_32_Days",\
-            "Withdrawl_60_Days","Withdrawl_90_Days","Withdrawl_Lifetime",\
-            'Avg_Bet_7_Days','Avg_Bet_14_Days','Avg_Bet_21_Days', 'Avg_Bet_32_Days', 'Avg_Bet_60_Days',\
-             'Avg_Bet_90_Days', 'NGR_7_Days', 'NGR_14_Days','NGR_21_Days', 'NGR_32_Days',\
-             'NGR_60_Days', 'NGR_90_Days', 'NGR_lifetime', 'GGR_Lifetime',\
-             'NGR_Deposits_7_Days', 'NGR_Deposits_14_Days','NGR_Deposits_21_Days', 'NGR_Deposits_32_Days',\
-             'NGR_Deposits_60_Days', 'NGR_Deposits_90_Days', 'Player_Balance',\
-             'Deposit_Payout_Percent','Payout_Percent', 'Net_deposits', 'Bonus_Used']].apply(lambda x:round(x,2))
+VIP_Summary[["Total_Deposits_Count",\
+            "Deposit_Lifetime","Withdrawl_Lifetime",\
+            'NGR_lifetime', 'GGR_Lifetime',\
+             'Player_Balance',\
+             'Net_deposits', 'Bonus_Used']]\
+= VIP_Summary[["Total_Deposits_Count",\
+            "Deposit_Lifetime","Withdrawl_Lifetime",\
+             'NGR_lifetime', 'GGR_Lifetime',\
+             'Player_Balance',\
+              'Net_deposits', 'Bonus_Used']].apply(lambda x:round(x,2))
 
 VIP_Summary.rename(columns = {'date_of_reaching_1k': 'date_of_VIP',\
                        'date_of_reaching_750': 'date_of_Pre_VIP'}, inplace = True)
@@ -304,7 +267,6 @@ VIP_Summary_1['date_of_Potential_VIP'] = [x if pd.isnull(y)\
                                         else y if  pd.isnull(x)\
                                        else  x  if x < y \
                                        else y for x,y in zip(VIP_Summary_1['10_txn_date'],VIP_Summary_1['date_of_reaching_250'])]
-
 
 engine = create_engine('postgresql://orpctbsqvqtnrx:530428203217ce11da9eb9586a5513d0c7fe08555c116c103fd43fb78a81c944@ec2-34-202-53-101.compute-1.amazonaws.com:5432/d46bn1u52baq92',\
                            echo = False)
@@ -357,8 +319,6 @@ def send_mail(send_from,send_to,subject,text,server,port,username='',password=''
 subject = sub
 body = f"Hi,\n\n Attached contains list of VIP customer Segments as of {date_1}\n\nThanks,\nSaketh"
 sender = "sakethg250@gmail.com"
-recipients = ["saketh@crystalwg.com","alberto@crystalwg.com",\
-             "isaac@crystalwg.com","ron@crystalwg.com","sebastian@crystalwg.com",\
-             "rafael@crystalwg.com","sandra@crystalwg.com","erika@crystalwg.com","camila@crystalwg.com","lina.betcoco@gmail.com"]
+recipients = ["saketh@crystalwg.com"]
 password = "xjyb jsdl buri ylqr"
 send_mail(sender, recipients, subject, body, "smtp.gmail.com", 465,sender,password)
