@@ -241,65 +241,72 @@ on a.customer_fk = k.customer_fk \
 left join txn_base_cnt_2 as l \
 on a.customer_fk = l.customer_fk", con=connection)
 
+VIP_Summary[["Total_Deposits_Count", \
+             "Deposit_Lifetime", "Withdrawl_Lifetime", \
+             'NGR_lifetime', 'GGR_Lifetime', \
+             'Player_Balance', \
+             'Net_deposits', 'Bonus_Used']] \
+    = VIP_Summary[["Total_Deposits_Count", \
+                   "Deposit_Lifetime", "Withdrawl_Lifetime", \
+                   'NGR_lifetime', 'GGR_Lifetime', \
+                   'Player_Balance', \
+                   'Net_deposits', 'Bonus_Used']].apply(lambda x: round(x, 2))
 
-VIP_Summary[["Total_Deposits_Count",\
-            "Deposit_Lifetime","Withdrawl_Lifetime",\
-            'NGR_lifetime', 'GGR_Lifetime',\
-             'Player_Balance',\
-             'Net_deposits', 'Bonus_Used']]\
-= VIP_Summary[["Total_Deposits_Count",\
-            "Deposit_Lifetime","Withdrawl_Lifetime",\
-             'NGR_lifetime', 'GGR_Lifetime',\
-             'Player_Balance',\
-              'Net_deposits', 'Bonus_Used']].apply(lambda x:round(x,2))
-
-VIP_Summary.rename(columns = {'date_of_reaching_1k': 'date_of_VIP',\
-                       'date_of_reaching_750': 'date_of_Pre_VIP'}, inplace = True)
+VIP_Summary.rename(columns={'date_of_reaching_1k': 'date_of_VIP', \
+                            'date_of_reaching_750': 'date_of_Pre_VIP'}, inplace=True)
 
 VIP_Summary['VIP_Segment'] = ['VIP Customer' if x >= 1000 \
-                              else 'Pre VIP Customer' if x >= 750  and x < 1000 \
-                             else 'Potential VIP Customer' if (x >= 250 and x < 750) or y >= 10 \
-                              else 'Non VIP Customers' for x,y in zip(VIP_Summary['Deposit_Lifetime'],VIP_Summary['Total_Deposits_Count'])]
+                                  else 'Pre VIP Customer' if x >= 750 and x < 1000 \
+    else 'Potential VIP Customer' if (x >= 250 and x < 750) or y >= 10 \
+    else 'Non VIP Customers' for x, y in zip(VIP_Summary['Deposit_Lifetime'], VIP_Summary['Total_Deposits_Count'])]
 
 VIP_Summary_1 = VIP_Summary[VIP_Summary['VIP_Segment'] != 'Non VIP Customers']
 
-VIP_Summary_1['date_of_Potential_VIP'] = [x if pd.isnull(y)\
-                                        else y if  pd.isnull(x)\
-                                       else  x  if x < y \
-                                       else y for x,y in zip(VIP_Summary_1['10_txn_date'],VIP_Summary_1['date_of_reaching_250'])]
+VIP_Summary_1['date_of_Potential_VIP'] = [x if pd.isnull(y) \
+                                              else y if pd.isnull(x) \
+    else x if x < y \
+    else y for x, y in zip(VIP_Summary_1['10_txn_date'], VIP_Summary_1['date_of_reaching_250'])]
 
-engine = create_engine('postgresql://orpctbsqvqtnrx:530428203217ce11da9eb9586a5513d0c7fe08555c116c103fd43fb78a81c944@ec2-34-202-53-101.compute-1.amazonaws.com:5432/d46bn1u52baq92',\
-                           echo = False)
+engine = create_engine(
+    'postgresql://orpctbsqvqtnrx:530428203217ce11da9eb9586a5513d0c7fe08555c116c103fd43fb78a81c944@ec2-34-202-53-101.compute-1.amazonaws.com:5432/d46bn1u52baq92', \
+    echo=False)
 
 help_desk_info = pd.read_sql_query("select * from last_contact_info", con=engine)
 
-VIP_Summary_f = VIP_Summary_1.merge(help_desk_info, left_on = 'email', right_on = 'requester_email' , how = 'left')
+VIP_Summary_1['email'] = VIP_Summary_1['email'].apply(bytes)
 
-VIP_Summary_f.drop(['index','email','requester_email'], axis=1, inplace = True)
+VIP_Summary_f = VIP_Summary_1.merge(help_desk_info, left_on='email', right_on='requester_email', how='left')
 
-date = dt.datetime.today()-  timedelta(1)
+VIP_Summary_f.drop(['index', 'email', 'requester_email'], axis=1, inplace=True)
+
+VIP_Summary_f = VIP_Summary_f.sort_values(by=['Days_since_last_deposit','Deposit_Lifetime'], ascending=[True,False])
+
+VIP_Summary_f  = VIP_Summary_f[VIP_Summary_f['is_blocked'] == 0]
+
+date = dt.datetime.today() - timedelta(1)
 date_1 = date.strftime("%m-%d-%Y")
+
 filename = f'VIP_Customer_Segments_{date_1}.xlsx'
 
 with pd.ExcelWriter(filename) as writer:
-    VIP_Summary_f.reset_index(drop=True).to_excel(writer, sheet_name="VIP_Summary",index=False)
-
+    VIP_Summary_f.reset_index(drop=True).to_excel(writer, sheet_name="VIP_Summary", index=False)
 
 sub = f'VIP_Customer_Segments - {date_1}'
 
-#!/usr/bin/python
-import smtplib,ssl
+# !/usr/bin/python
+import smtplib, ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.utils import formatdate
 from email import encoders
 
-def send_mail(send_from,send_to,subject,text,server,port,username='',password=''):
+
+def send_mail(send_from, send_to, subject, text, server, port, username='', password=''):
     msg = MIMEMultipart()
     msg['From'] = send_from
     msg['To'] = ', '.join(recipients)
-    msg['Date'] = formatdate(localtime = True)
+    msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
     msg.attach(MIMEText(text))
 
@@ -309,13 +316,14 @@ def send_mail(send_from,send_to,subject,text,server,port,username='',password=''
     part.add_header('Content-Disposition', f'attachment; filename={filename}')
     msg.attach(part)
 
-    #context = ssl.SSLContext(ssl.PROTOCOL_SSLv3)
-    #SSL connection only working on Python 3+
+    # context = ssl.SSLContext(ssl.PROTOCOL_SSLv3)
+    # SSL connection only working on Python 3+
     smtp = smtplib.SMTP_SSL(server, port)
-    smtp.login(username,password)
+    smtp.login(username, password)
     smtp.sendmail(send_from, send_to, msg.as_string())
     smtp.quit()
-    
+
+
 subject = sub
 body = f"Hi,\n\n Attached contains list of VIP customer Segments as of {date_1}\n\nThanks,\nSaketh"
 sender = "sakethg250@gmail.com"
@@ -323,4 +331,6 @@ recipients = ["saketh@crystalwg.com","alberto@crystalwg.com",\
              "isaac@crystalwg.com","ron@crystalwg.com","sebastian@crystalwg.com",\
              "rafael@crystalwg.com","sandra@crystalwg.com","erika@crystalwg.com","camila@crystalwg.com","lina.betcoco@gmail.com"]
 password = "xjyb jsdl buri ylqr"
-send_mail(sender, recipients, subject, body, "smtp.gmail.com", 465,sender,password)
+send_mail(sender, recipients, subject, body, "smtp.gmail.com", 465, sender, password)
+
+
