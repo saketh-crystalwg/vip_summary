@@ -76,7 +76,7 @@ where "Status" in ('Approved', 'ApprovedManually') \
 and "Type" = 3 \
 group by 1) \
  \
-select a.*, b."CountryName", b."AffiliateId","LanguageId", date("LastSessionDate") as last_login_date, wtdrl_amt,"RealBalance","BonusBalance", vip_date, \
+select a.*, b."FirstName", b."LastName",b."BirthDate",b."Address",b."CountryName", b."AffiliateId","LanguageId", date("LastSessionDate") as last_login_date, wtdrl_amt,"RealBalance","BonusBalance", vip_date, \
  CURRENT_DATE - DATE(b."LastSessionDate") AS days_since_last_login, \
  CURRENT_DATE - Last_dpst_date AS days_since_last_dpst \
 from deposits as a \
