@@ -67,7 +67,7 @@ ORDER BY \
     dpst_date), \
 \
 vip as (select "ClientId",  min("dpst_date") as vip_date from deposits_rlp \
-    where cumulative_dpst_amt >= 300 or cumulative_dpst_count >= 10 \
+    where cumulative_dpst_amt >= 200 or cumulative_dpst_count >= 5 \
     group  by  1), \
  \
 wthdrls as ( \
