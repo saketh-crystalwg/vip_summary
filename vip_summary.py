@@ -99,7 +99,7 @@ vip_base["BonusBalance"] = vip_base["BonusBalance"].apply(lambda x: format_curre
 date = dt.datetime.today()-  timedelta(1)
 date_1 = date.strftime("%m-%d-%Y")
 filename = f'Betfoxx_VIP_Cucstomers_{date_1}.xlsx'
-sub = f'Betfoxx_VIP_Cucstomers_{date_1}'
+sub = f'Betfoxx_VIP_Customers_{date_1}'
 
 with pd.ExcelWriter(filename, engine='openpyxl') as writer:
     vip_base.to_excel(writer, sheet_name="VIP_Summary", index=False)
@@ -107,6 +107,6 @@ with pd.ExcelWriter(filename, engine='openpyxl') as writer:
 subject = sub
 body = f"Hi,\n\n Attached contains the VIP Customers summary for the {date_1} for Betfoxx \n\nThanks,\nSaketh"
 sender = "sakethg250@gmail.com"
-recipients = ["lina@crystalwg.com","sandra@crystalwg.com","camila@crystalwg.com","isaac@crystalwg.com","sebastian@crystalwg.com","sakethg250@gmail","saketh@crystalwg.com"]
+recipients = ["lina@crystalwg.com","sandra@crystalwg.com","camila@crystalwg.com","isaac@crystalwg.com","sebastian@crystalwg.com","sakethg250@gmail.com","saketh@crystalwg.com"]
 password = "xjyb jsdl buri ylqr"
 send_mail(sender, recipients, subject, body, "smtp.gmail.com", 465, sender, password, filename)
